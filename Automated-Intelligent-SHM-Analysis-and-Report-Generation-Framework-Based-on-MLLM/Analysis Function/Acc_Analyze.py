@@ -56,27 +56,63 @@ def Acc_analyze(file_path, acc_conf):
 
     return results
 
+
+# ========== RFDH转换 ==========
+def to_rfdh(series, bins=4000, range=(-50, 50)):
+    """
+    将一维加速度序列转换为相对频率分布直方图 (RFDH)
+    - 固定分箱范围 [-50, 50]
+    - 分箱数 4000
+    """
+    hist, _ = np.histogram(series, bins=bins, range=range, density=False)
+    if np.sum(hist) > 0:
+        rfdh = hist / np.sum(hist)
+    else:
+        rfdh = np.zeros_like(hist, dtype=float)
+    return rfdh
+
+
+# ========== 载入训练好的CNN模型 ==========
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+cnn_model = torch.load('cnn_acc_model.pth', map_location=device)
+cnn_model.eval()
+
 # 定义加速度预处理方法
 def Prep_ACC(data, acc_conf):
-    ############ 判断缺失（nan判断） #############
+    """
+       用 CNN 进行加速度异常检测：
+         1. 将每列数据转换为 RFDH
+         2. 送入 CNN 分类
+         3. 返回0(正常)或1(异常)
+       """
     num_columns = data.shape[1]
     result = []
+
     for i in range(num_columns):
-        new_data = data.iloc[:, i]
-        new_data = new_data.apply(pd.to_numeric, errors='coerce')
-        missing_index = new_data.isna().mean()
-        if missing_index!=1:
-    ############ 判断离群点（阈值判断）#############
-            if max(new_data) > float(acc_conf.Pre_conf["up_lim"]) or min(new_data) < float(acc_conf.Pre_conf["low_lim"]):
-                outlier_index = 1
-            else:
-                outlier_index = 0
+        # 取出一列数据
+        series = pd.to_numeric(data.iloc[:, i], errors='coerce').dropna()
+
+        if series.empty:
+            result.append(1)
+            continue
+
+        # === Step1: RFDH转换 ===
+        rfdh = to_rfdh(series, bins=4000, range=(-50, 50))  # shape: (4000,)
+        rfdh_tensor = torch.tensor(rfdh, dtype=torch.float32).unsqueeze(0).unsqueeze(0).to(device)
+
+        # === Step2: CNN推理 ===
+        with torch.no_grad():
+            output = cnn_model(rfdh_tensor)
+            prob = F.softmax(output, dim=1)
+            pred = torch.argmax(prob, dim=1).item()
+        if pred!=0:
+            result.append(1)
         else:
-            outlier_index=0
-        result.append(missing_index)
-        result.append(outlier_index)
-    np_array = np.array(result)
-    result = np_array.tolist()
+            result.append(0)
+
+        # === Step3: 保存结果 ===
+        result.append(pred)
+
     return result
 
 # 定义SSI自动识别模态方法
@@ -212,3 +248,4 @@ if __name__ == '__main__':
     # freq_orders, dp_orders = AM.AutoSSI(Y, dt, order, err, order_num)
     # print(freq_orders)
     # print(dp_orders)
+
