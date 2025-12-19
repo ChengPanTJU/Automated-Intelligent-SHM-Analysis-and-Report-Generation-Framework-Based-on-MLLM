@@ -1,0 +1,39 @@
+# 监测数据自动化分析-dask（CPU版）依赖清单
+# Python 建议版本：3.9（与你当前 py39 环境一致）
+#
+# 安装方式：
+#   pip install -r requirements.txt
+#
+# 说明：
+# - 本项目已改造为：未安装 PyTorch 时，dl 分支自动回退为 ARIMAX/ARIMA，因此 torch/transformers 可选。
+# - 若你需要运行 LSTM（dl）或多模态大模型（Qwen2.5-VL）相关脚本，请安装下方“可选依赖”。
+
+# -------- 核心依赖（无 PyTorch 也可运行）--------
+numpy>=1.23
+pandas>=1.5
+scipy>=1.9
+scikit-learn>=1.1
+statsmodels>=0.14
+matplotlib>=3.7
+seaborn>=0.12
+
+# Dask 并行
+dask[dataframe,distributed]>=2023.3.0
+
+# 报告/表格
+python-docx>=0.8.11
+openpyxl>=3.1.0
+
+# 聚类（异常/聚类分析）
+hdbscan>=0.8.33
+
+# 其他
+sympy>=1.11
+
+# -------- 可选依赖：深度学习（LSTM / dl 分支）--------
+# torch（CPU 版）建议按官方指引安装；Windows/CPU 可能需要指定 index-url 或额外链接。
+# torch>=2.1
+
+# -------- 可选依赖：多模态大模型（Qwen2.5-VL 相关脚本）--------
+# transformers>=4.40
+# qwen-vl-utils
